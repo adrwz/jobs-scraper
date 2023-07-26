@@ -2,8 +2,8 @@
 Page listing all job listings
 """
 
-from bs4 import BeautifulSoup
 from urllib.request import urlopen
+from bs4 import BeautifulSoup
 from models import ATSBaseURL
 
 
@@ -16,21 +16,6 @@ class BoardPage:
         self.url = url
         self._iterate_to_base_soup(page_soup)
         self._identify_base_url(url)
-
-    def _has_ats_base_url_links(self, page_soup: BeautifulSoup) -> str:
-        """
-        Returns a str if there exists an ATS base url <a> tag; None otherwise
-        """
-        ats_base_urls = list(ATSBaseURL.__members__.values())
-
-        links = page_soup.find_all("a")
-        for link in links:
-            link_href = link.attrs.get("href", "")
-            for ats_base_url in ats_base_urls:
-                if link_href in ats_base_url:
-                    return ats_base_url
-
-        return None
 
     def _iterate_to_base_soup(self, page_soup: BeautifulSoup) -> None:
         """
@@ -47,13 +32,12 @@ class BoardPage:
             if "http" not in iframe_src:
                 iframe_src = iframe.attrs.get("data-src", "")
 
-            # Parse
-            with urlopen(iframe_src) as response:
-                iframe_soup = BeautifulSoup(response, "html.parser")
-
-            if self._has_ats_base_url_links(iframe_soup):
-                self.page_soup = iframe_soup
-                return
+            ats_base_urls = list(ATSBaseURL.__members__.values())
+            for ats_base_url in ats_base_urls:
+                if ats_base_url in iframe_src:
+                    with urlopen(iframe_src) as response:
+                        self.page_soup = BeautifulSoup(response, "html.parser")
+                    return
 
     def _identify_base_url(self, url: str) -> bool:
         """
@@ -67,14 +51,32 @@ class BoardPage:
                 return True
 
         # Loop through all <a> tags and attempt to match href links
-        ats_base_url = self._has_ats_base_url_links(self.page_soup)
-        if ats_base_url:
-            self.ats_base_url = ats_base_url
-            return True
+        ats_base_urls = list(ATSBaseURL.__members__.values())
+        for ats_base_url in ats_base_urls:
+            if ats_base_url in str(self.page_soup):
+                self.ats_base_url = ats_base_url
+                return True
 
         # Not an ATS system; set to none
         self.ats_base_url = None
         return False
+
+    def scrape_all_relevant_roles(self, role_keywords: str) -> list[str]:
+        """
+        Scrapes self.page_soup for all relevant roles; returns a list of links
+        """
+        role_links = []
+        for role_keyword in role_keywords:
+            role_tags = self.page_soup.find_all(
+                lambda tag, keyword=role_keyword: len(tag.find_all()) == 0
+                and keyword in tag.text
+            )
+            for role_tag in role_tags:
+                href = role_tag.attrs.get("href", "")
+                if href:
+                    role_links.append(href)
+
+        return role_links
 
     def get_page_soup(self) -> BeautifulSoup:
         """

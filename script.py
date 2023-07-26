@@ -13,6 +13,20 @@ from board_page import BoardPage
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 URL = "https://bymason.com/careers/"
+ROLE_KEYWORDS = [
+    # Ops
+    "BizOps",
+    "Operations",
+    "Chief of Staff",
+    "Business",
+    "Strategy",
+    # Marketing
+    "Marketing",
+    "Growth",
+    "Community",
+    # Sales
+    "Sales",
+]
 
 
 # page = requests.get(url)
@@ -27,6 +41,4 @@ soup = BeautifulSoup(page, "html.parser")
 
 # Create a new BoardPage
 board_page = BoardPage(soup, URL)
-print(board_page.get_page_soup().prettify())
-print(board_page.get_url())
-print(board_page.get_ats_base_url())
+print(board_page.scrape_all_relevant_roles(ROLE_KEYWORDS))
