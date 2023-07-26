@@ -22,6 +22,7 @@ class BoardPage:
         Recursively loop through iframes until the base board page is found
         Assumption: the base soup probably has a host of ATSBaseURL links
         """
+        ats_base_urls = list(ATSBaseURL.__members__.values())
         self.page_soup = page_soup
 
         # First, try and parse through iframes because they're handled differently
@@ -32,12 +33,22 @@ class BoardPage:
             if "http" not in iframe_src:
                 iframe_src = iframe.attrs.get("data-src", "")
 
-            ats_base_urls = list(ATSBaseURL.__members__.values())
             for ats_base_url in ats_base_urls:
                 if ats_base_url in iframe_src:
                     with urlopen(iframe_src) as response:
                         self.page_soup = BeautifulSoup(response, "html.parser")
                     return
+
+        noframes = page_soup.find_all("noframes")
+        for noframe in noframes:
+            links = noframe.find_all("a", href=True)
+            for link in links:
+                link_href = link.attrs.get("href", "")
+                for ats_base_url in ats_base_urls:
+                    if ats_base_url in link_href:
+                        with urlopen(link_href) as response:
+                            self.page_soup = BeautifulSoup(response, "html.parser")
+                        return
 
     def _identify_base_url(self, url: str) -> bool:
         """
@@ -50,7 +61,6 @@ class BoardPage:
                 self.ats_base_url = ats_base_url
                 return True
 
-        # Loop through all <a> tags and attempt to match href links
         ats_base_urls = list(ATSBaseURL.__members__.values())
         for ats_base_url in ats_base_urls:
             if ats_base_url in str(self.page_soup):
@@ -73,8 +83,11 @@ class BoardPage:
             )
             for role_tag in role_tags:
                 href = role_tag.attrs.get("href", "")
-                if href:
-                    role_links.append(href)
+                if href and self.ats_base_url:
+                    if self.ats_base_url in href:
+                        role_links.append(href)
+                    elif href.startswith("/"):
+                        role_links.append(f"https://{self.ats_base_url}{href}")
 
         return role_links
 
