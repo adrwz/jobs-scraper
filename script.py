@@ -9,6 +9,7 @@ The script works for most pages except:
 3. Job postings on specific listings
     a. Wellfound
     b. YC
+    c. LinkedIn
 """
 
 
@@ -19,6 +20,7 @@ from bs4 import BeautifulSoup
 import openai
 
 from board_page import BoardPage
+from listing_page import ListingPage
 
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -39,22 +41,34 @@ ROLE_KEYWORDS = [
 ]
 
 
-# page = requests.get(url)
-# print(page.text)
+def open_and_create_soup(url: str) -> BeautifulSoup:
+    """
+    Requests and creates a bs4 object from url
+    """
+    req = Request(url=url, headers={"User-Agent": "Mozilla/5.0"})
 
-req = Request(url=URL, headers={"User-Agent": "Mozilla/5.0"})
+    try:
+        with urlopen(req) as f:
+            page = f.read().decode("utf-8")
+    except HTTPError as e:
+        print("HTTPError on request:", e)
+    except URLError as e:
+        print("URLError on request:", e)
+    else:
+        return BeautifulSoup(page, "html.parser")
+    return None
 
-try:
-    with urlopen(req) as f:
-        page = f.read().decode("utf-8")
-except HTTPError as e:
-    print("HTTPError on request:", e)
-except URLError as e:
-    print("URLError on request:", e)
-else:
-    soup = BeautifulSoup(page, "html.parser")
 
-    # Create a new BoardPage
-    board_page = BoardPage(soup, URL)
-    # print(board_page.get_page_soup().prettify())
-    print(board_page.scrape_all_relevant_roles(ROLE_KEYWORDS))
+# Create a new BoardPage
+board_page = BoardPage(open_and_create_soup(URL), URL)
+relevant_role_links = board_page.scrape_all_relevant_roles(ROLE_KEYWORDS)
+base_url = board_page.get_ats_base_url()
+
+listing_pages = []
+for relevant_role_link in relevant_role_links:
+    listing_page = ListingPage(
+        open_and_create_soup(relevant_role_link), relevant_role_link, base_url=base_url
+    )
+    print(listing_page.scrape_job_title())
+    print(listing_page.scrape_job_description())
+    listing_pages.append(listing_page)
